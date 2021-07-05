@@ -1,0 +1,4 @@
+{
+    "python.pythonPath": "C:\\Users\\patri\\AppData\\Local\\Microsoft\\WindowsApps\\python3.9.exe",
+    "python.analysis.extraPaths": ["./Knights"]
+}
