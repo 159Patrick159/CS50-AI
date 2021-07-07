@@ -1,4 +1,5 @@
 import sys
+from typing import Container
 from crossword import *
 
 
@@ -146,21 +147,80 @@ class CrosswordCreator():
         Return True if arc consistency is enforced and no domains are empty;
         return False if one or more domains end up empty.
         """
-        raise NotImplementedError
+        # Check if arcs is none
+        if arcs is None:
+            queue = []
+            # Iterate through variables
+            for x in self.domains:
+                for y in self.domains:
+                    # Ignore the same variable
+                    if x == y:
+                        continue
+                    # Check if there is overlap between two variables
+                    elif self.crossword.overlap[x,y]:
+                        # Add this arc to our queue
+                        queue.append((x,y))
+        else:
+            # Otherwise use the existing arcs as our queue
+            queue = arcs
+        # Start dequeing each arc in queue
+        while len(queue) != 0:
+            (X,Y) = queue[0]
+            queue.remove((X,Y))
+            if self.revise(X,Y):
+                if len(self.domains[X]) == 0:
+                    return(False)
+                neighbors = self.crossword.neighbors(X)
+                neighbors_minusY = neighbors.remove(Y)
+                for Z in neighbors_minusY:
+                    queue.apped((Z,X))
+        return(True)
 
     def assignment_complete(self, assignment):
         """
         Return True if `assignment` is complete (i.e., assigns a value to each
         crossword variable); return False otherwise.
         """
-        raise NotImplementedError
+        # Read in all the variables
+        assigned_variables = assignment.keys() 
+        # Read all the possible word
+        total_words = self.crossword.words()
+        # If the length of each set matches then all values have beent assigned to a variable
+        if len(assigned_variables) != len(total_words):
+            return(False)
 
     def consistent(self, assignment):
         """
         Return True if `assignment` is consistent (i.e., words fit in crossword
         puzzle without conflicting characters); return False otherwise.
         """
-        raise NotImplementedError
+        # Iterate through variables in assignment dict
+        for var in assignment:
+            # Collect word from variable
+            word = assignment[var]
+            # Check for unary constraint to be met
+            for i in range(len(assignment)):
+                # If constraint is not met return false
+                if len(word) != var.length:
+                    return(False)
+
+        # Check for repeated words
+        words = list(assignment.values())
+        words_set = set(words)
+        # Sets eliminate repeated elements
+        if len(words) != len(words_set):
+            return(False)
+        
+        # Ensure arc consistency
+        for var1 in assignment:
+            for var2 in assignment:
+                if var1 == var2:
+                    continue
+                # Check if arc consistency holds
+                if not self.revise(var1,var2):
+                    # If arc consistency is not met return false
+                    return(False)
+        return(True)
 
     def order_domain_values(self, var, assignment):
         """
@@ -169,8 +229,29 @@ class CrosswordCreator():
         The first value in the list, for example, should be the one
         that rules out the fewest values among the neighbors of `var`.
         """
-        raise NotImplementedError
-
+        # Find all neigbors for var
+        neighbors = self.crossword.neighbors(var)
+        # Select only the neighbors that have been left unassigned
+        available_neighbors = [n for n in neighbors if n not in assignment.keys()]
+        # Gather all words availble in var's domain
+        var_domain = list(self.domains[var])
+        # Create a dict where we will keep track of the words and how much it constraints the problem
+        least_val_heu_raw = {}
+        # Iterate through the words in var's domain
+        for word in var_domain:
+            word_constraint = 0
+            # Iterate through var's neighbors
+            for neighbor in available_neighbors:
+                # Check if word leads to any constraits
+                if word in self.domains[neighbor]:
+                    word_constraint += 1 
+            # Update dictionary with word and number of constraints
+            least_val_heu_raw.update({word:word_constraint})
+        # Sort the raw heuristc using dict comprehension
+        least_val_heu = {word: rank for word, rank in sorted(least_val_heu_raw.items(), key=lambda item: item[1])}
+        order_words = [word for word in least_val_heu.keys()]
+        # Return words in order of heuristic
+        return(order_words)
     def select_unassigned_variable(self, assignment):
         """
         Return an unassigned variable not already part of `assignment`.
@@ -179,8 +260,8 @@ class CrosswordCreator():
         degree. If there is a tie, any of the tied variables are acceptable
         return values.
         """
-        raise NotImplementedError
-
+        available_variables = [var for var in self.crossword.variables() if var not in assignment.keys()]
+        
     def backtrack(self, assignment):
         """
         Using Backtracking Search, take as input a partial assignment for the
