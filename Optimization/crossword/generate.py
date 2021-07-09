@@ -1,4 +1,5 @@
 import sys
+import math
 from typing import Container
 from crossword import *
 
@@ -102,9 +103,10 @@ class CrosswordCreator():
         # Iterate through all variables in domain
         for v in self.domains:
             # Collect a word from variable's domain
-            for word in self.domains[v]:
+            domain_copy = self.domains[v].copy()
+            for word in domain_copy:
                 # Check if word matches variable lenght
-                if v.lenght != len(word):
+                if v.length != len(word):
                     # If not remove word from variable's domain
                     self.domains[v].remove(word)
 
@@ -119,22 +121,26 @@ class CrosswordCreator():
         """
         flag = False
         # Check if the two variables overlap;
-        if self.crossword.overlap[x,y] is None:
+        if self.crossword.overlaps[x,y] is None:
             # If they don't overlap then we dont need to make them arc consistent
             return(flag)
         else:  
             # Collect the indeces of the character where both variables overlap
-            (i,j) = self.crossword.overlap[x,y]
-            # Iterare through Y's domain of words
-            for word2 in self.domains[y]:
-                # Iterate through X's domain of words
-                for word1 in self.domains[x]:
+            (i,j) = self.crossword.overlaps[x,y]
+            # Create a copy of each variables domain
+            x_copy = self.domains[x].copy()
+            a = self.domains
+            # Iterare through X's domain of words
+            for word1 in x_copy:
+                # Iterate through Y's domain of words
+                for word2 in self.domains[y]:
                     # Check for any conflict in between the overlap of these two words
                     if word1[i] != word2[j]:
                         # Remove word from X's domain
                         self.domains[x].remove(word1)
                         # Mark that we have done revisions
                         flag = True
+                        break
         return(flag)
 
 
@@ -157,12 +163,12 @@ class CrosswordCreator():
                     if x == y:
                         continue
                     # Check if there is overlap between two variables
-                    elif self.crossword.overlap[x,y]:
+                    elif self.crossword.overlaps[x,y]:
                         # Add this arc to our queue
                         queue.append((x,y))
         else:
             # Otherwise use the existing arcs as our queue
-            queue = arcs
+            queue = list(arcs)
         # Start dequeing each arc in queue
         while len(queue) != 0:
             (X,Y) = queue[0]
@@ -184,7 +190,7 @@ class CrosswordCreator():
         # Read in all the variables
         assigned_variables = assignment.keys() 
         # Read all the possible word
-        total_words = self.crossword.words()
+        total_words = self.crossword.words
         # If the length of each set matches then all values have beent assigned to a variable
         if len(assigned_variables) != len(total_words):
             return(False)
@@ -260,8 +266,26 @@ class CrosswordCreator():
         degree. If there is a tie, any of the tied variables are acceptable
         return values.
         """
-        available_variables = [var for var in self.crossword.variables() if var not in assignment.keys()]
-        
+        available_variables = [var for var in self.crossword.variables if var not in assignment.keys()]
+        best_variable = None
+        # Iterate through the available variables
+        for var in available_variables:
+            # Create a value for the smallest number of elements in the domain
+            best = math.inf
+            var_domain = self.domains[var]
+            # If var's domain is less then the best than we assign it to be the best option 
+            if len(var_domain) < best:
+                best = len(var_domain)
+                best_variable = var
+            # If there is a tie between best var and current bar we pick the one with more neighbors
+            elif len(var_domain) == best:
+                best_var_neighbors = self.crossword.neighbors(best_variable)
+                current_var_neighbors = self.crossword.neighbors(var)
+                # Compare the number of neighbors for each variable
+                if len(best_var_neighbors) < len(current_var_neighbors):
+                    best_variable = var
+        return(best_variable)
+
     def backtrack(self, assignment):
         """
         Using Backtracking Search, take as input a partial assignment for the
@@ -271,9 +295,45 @@ class CrosswordCreator():
 
         If no assignment is possible, return None.
         """
-        raise NotImplementedError
-
-
+        # Check if we have finished assigning word to variables
+        if self.assignment_complete(assignment):
+            return(assignment)
+        # Select unassigned variable
+        var = self.select_unassigned_variable(assignment)
+        # Gather variable's neighbors
+        var_neighbors = self.crossword.neighbors(var)
+        flag = False
+        # Iterate through best possible values for variable
+        for word in self.order_domain_values(var,assignment):
+            # Make assignment
+            assignment[var] = word
+            # Make sure assignment is consistent
+            if self.consistent(assignment):
+                arcs = [(var,arc) for arc in var_neighbors]
+                # Check for arc consistency and update arc's domain
+                inference = self.ac3(arcs)
+                # If inference was a success assign new domains to neighbors
+                if inference:
+                    flag = True
+                    for neighbor in var_neighbors:
+                        assignment[neighbor] = self.domains[neighbor]
+                # Call backtrack recursively
+                result = self.backtrack(assignment)
+                # If backtrack isnt able to find a consistent assignment it will return None
+                if result != None:
+                    return(result)
+            # If assignment is not consitent we need to remove last assignment
+            assignment.pop(var)
+            # See if inferences were made
+            if flag:
+                # Eliminate infereces made from previous assignment
+                for neighbor in var_neighbors:
+                    assignment.pop(neighbor)
+        # Finally if backtrack finishes its recursive calling and doesnt finish assigning then
+        # return None
+        return(None)
+            
+                    
 def main():
 
     # Check usage
