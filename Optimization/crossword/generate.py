@@ -1,6 +1,7 @@
 import sys
 import math
-from typing import Container
+import copy
+from typing import Container, NewType
 from crossword import *
 
 
@@ -62,7 +63,7 @@ class CrosswordCreator():
              self.crossword.height * cell_size),
             "black"
         )
-        font = ImageFont.truetype("assets/fonts/OpenSans-Regular.ttf", 80)
+        font = ImageFont.truetype("arial.ttf", 80)
         draw = ImageDraw.Draw(img)
 
         for i in range(self.crossword.height):
@@ -90,8 +91,8 @@ class CrosswordCreator():
         """
         Enforce node and arc consistency, and then solve the CSP.
         """
-        self.enforce_node_consistency()
-        self.ac3()
+        a = self.enforce_node_consistency()
+        b = self.ac3()
         return self.backtrack(dict())
 
     def enforce_node_consistency(self):
@@ -109,6 +110,7 @@ class CrosswordCreator():
                 if v.length != len(word):
                     # If not remove word from variable's domain
                     self.domains[v].remove(word)
+            
 
     def revise(self, x, y):
         """
@@ -126,21 +128,25 @@ class CrosswordCreator():
             return(flag)
         else:  
             # Collect the indeces of the character where both variables overlap
-            (i,j) = self.crossword.overlaps[x,y]
-            # Create a copy of each variables domain
-            x_copy = self.domains[x].copy()
-            a = self.domains
-            # Iterare through X's domain of words
-            for word1 in x_copy:
-                # Iterate through Y's domain of words
-                for word2 in self.domains[y]:
-                    # Check for any conflict in between the overlap of these two words
-                    if word1[i] != word2[j]:
-                        # Remove word from X's domain
-                        self.domains[x].remove(word1)
+            i = self.crossword.overlaps[x,y][0]
+            j = self.crossword.overlaps[x,y][1]
+            # Create array to keep track of which words are consitent with Y's domain
+            candidates = []
+            # Iterare through Y's domain of words
+            for word2 in self.domains[y]:
+                # Iterate through X's domain of words
+                for word1 in self.domains[x]:
+                    # Check for words that are consitent with Y's domain
+                    if word1[i] == word2[j]:
+                        # Add word to candidates array
+                        candidates.append(word1)
                         # Mark that we have done revisions
-                        flag = True
-                        break
+                        flag = True  
+            # Eliminate duplicates
+            candidates_set = set(candidates)
+            # Update the domain of X to the list of viable candidates
+            self.domains[x] = list(candidates_set)
+        # Return flag
         return(flag)
 
 
@@ -155,6 +161,7 @@ class CrosswordCreator():
         """
         # Check if arcs is none
         if arcs is None:
+            # Create a queue with arcs
             queue = []
             # Iterate through variables
             for x in self.domains:
@@ -171,15 +178,29 @@ class CrosswordCreator():
             queue = list(arcs)
         # Start dequeing each arc in queue
         while len(queue) != 0:
-            (X,Y) = queue[0]
-            queue.remove((X,Y))
+            # Deque the arc
+            X = queue[0][0]
+            Y = queue[0][1]
+            a = self.domains[X]
+            r = self.domains[Y] 
+            if (X,Y) in queue:
+                queue.remove((X,Y))
+            if (Y,X) in queue:
+                queue.remove((Y,X))
+            # Check if both variables are arc consistent
             if self.revise(X,Y):
+                # If the domain of x is empty then we cant make x arc consistent
                 if len(self.domains[X]) == 0:
                     return(False)
                 neighbors = self.crossword.neighbors(X)
-                neighbors_minusY = neighbors.remove(Y)
-                for Z in neighbors_minusY:
-                    queue.apped((Z,X))
+                neighbors_minusY = copy.deepcopy(neighbors)
+                if Y in neighbors_minusY:
+                    neighbors_minusY.remove(Y)
+                    for Z in neighbors_minusY:
+                        queue.append((Z,X))
+                else:
+                    for Z in neighbors:
+                        queue.append((Z,X))
         return(True)
 
     def assignment_complete(self, assignment):
@@ -187,13 +208,20 @@ class CrosswordCreator():
         Return True if `assignment` is complete (i.e., assigns a value to each
         crossword variable); return False otherwise.
         """
-        # Read in all the variables
-        assigned_variables = assignment.keys() 
-        # Read all the possible word
-        total_words = self.crossword.words
-        # If the length of each set matches then all values have beent assigned to a variable
-        if len(assigned_variables) != len(total_words):
-            return(False)
+        a = self.crossword.variables
+        # Check if we have assigned all variables
+        if len(assignment) != len(self.crossword.variables):
+            return False
+        # Check every variables was assigned one word
+        available_variables = self.crossword.variables
+        for variabel in available_variables:
+            # The type of the value would be a string instead of a list if there is only
+            # one word assigned
+            if type(assignment[variabel]) != str:
+                return False
+        # Return true if both conditions are met
+        return True
+            
 
     def consistent(self, assignment):
         """
@@ -219,9 +247,8 @@ class CrosswordCreator():
         
         # Ensure arc consistency
         for var1 in assignment:
-            for var2 in assignment:
-                if var1 == var2:
-                    continue
+            neighbors = self.crossword.neighbors(var1)
+            for var2 in neighbors:
                 # Check if arc consistency holds
                 if not self.revise(var1,var2):
                     # If arc consistency is not met return false
@@ -240,7 +267,7 @@ class CrosswordCreator():
         # Select only the neighbors that have been left unassigned
         available_neighbors = [n for n in neighbors if n not in assignment.keys()]
         # Gather all words availble in var's domain
-        var_domain = list(self.domains[var])
+        var_domain = self.domains[var]
         # Create a dict where we will keep track of the words and how much it constraints the problem
         least_val_heu_raw = {}
         # Iterate through the words in var's domain
@@ -258,6 +285,7 @@ class CrosswordCreator():
         order_words = [word for word in least_val_heu.keys()]
         # Return words in order of heuristic
         return(order_words)
+
     def select_unassigned_variable(self, assignment):
         """
         Return an unassigned variable not already part of `assignment`.
@@ -267,11 +295,12 @@ class CrosswordCreator():
         return values.
         """
         available_variables = [var for var in self.crossword.variables if var not in assignment.keys()]
+        #available_variables = self.crossword.variables
         best_variable = None
+        # Create a value for the smallest number of elements in the domain
+        best = math.inf
         # Iterate through the available variables
         for var in available_variables:
-            # Create a value for the smallest number of elements in the domain
-            best = math.inf
             var_domain = self.domains[var]
             # If var's domain is less then the best than we assign it to be the best option 
             if len(var_domain) < best:
@@ -283,6 +312,7 @@ class CrosswordCreator():
                 current_var_neighbors = self.crossword.neighbors(var)
                 # Compare the number of neighbors for each variable
                 if len(best_var_neighbors) < len(current_var_neighbors):
+                    # If current variable has more neighbors then its a better option
                     best_variable = var
         return(best_variable)
 
@@ -300,15 +330,16 @@ class CrosswordCreator():
             return(assignment)
         # Select unassigned variable
         var = self.select_unassigned_variable(assignment)
-        # Gather variable's neighbors
-        var_neighbors = self.crossword.neighbors(var)
         flag = False
         # Iterate through best possible values for variable
         for word in self.order_domain_values(var,assignment):
             # Make assignment
-            assignment[var] = word
+            new_assignment = copy.deepcopy(assignment)
+            new_assignment[var] = word
             # Make sure assignment is consistent
-            if self.consistent(assignment):
+            if self.consistent(new_assignment):
+                # Gather variable's neighbors
+                var_neighbors = self.crossword.neighbors(var)
                 arcs = [(var,arc) for arc in var_neighbors]
                 # Check for arc consistency and update arc's domain
                 inference = self.ac3(arcs)
@@ -318,12 +349,12 @@ class CrosswordCreator():
                     for neighbor in var_neighbors:
                         assignment[neighbor] = self.domains[neighbor]
                 # Call backtrack recursively
-                result = self.backtrack(assignment)
+                result = self.backtrack(new_assignment)
                 # If backtrack isnt able to find a consistent assignment it will return None
                 if result != None:
                     return(result)
             # If assignment is not consitent we need to remove last assignment
-            assignment.pop(var)
+            new_assignment.pop(var)
             # See if inferences were made
             if flag:
                 # Eliminate infereces made from previous assignment
