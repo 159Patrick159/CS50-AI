@@ -12,11 +12,6 @@ x = {"apple":3,"pears":[4,1],"banana":5,"peach":6}
 #a = {word: rank for word, rank in sorted(x.items(), key=lambda item: item[1])}
 #b = [word for word in a.keys()]
 test = {1:['poopie','stinky'],2:'stinky'}
-empty = []
-for key in test.keys():
-    print(type(test[key]))
-    empty.append(test[key])
-print(empty)
-i = ['poopie','stinky']
-if type(i) != int:
-    print(i)
+r = ['book','apple','pear']
+if type(test[2]) == str:
+    print('poopie')

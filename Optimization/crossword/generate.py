@@ -117,7 +117,6 @@ class CrosswordCreator():
         Make variable `x` arc consistent with variable `y`.
         To do so, remove values from `self.domains[x]` for which there is no
         possible corresponding value for `y` in `self.domains[y]`.
-
         Return True if a revision was made to the domain of `x`; return
         False if no revision was made.
         """
@@ -155,7 +154,6 @@ class CrosswordCreator():
         Update `self.domains` such that each variable is arc consistent.
         If `arcs` is None, begin with initial list of all arcs in the problem.
         Otherwise, use `arcs` as the initial list of arcs to make consistent.
-
         Return True if arc consistency is enforced and no domains are empty;
         return False if one or more domains end up empty.
         """
@@ -253,6 +251,23 @@ class CrosswordCreator():
                 if not self.revise(var1,var2):
                     # If arc consistency is not met return false
                     return(False)
+        # If word has been assigned we need to check the word holds for arc-consistency with
+        # other words in domains of the othe variables.
+        for var in assignment:
+            # If the value from the dictionary is a str then it means a word was assigned
+            if type(assignment[var]) == str:
+                for neighbor in self.crossword.neighbors(var):
+                    assigned_word = assignment[var]
+                    i = self.crossword.overlaps[var,neighbor][0]
+                    j = self.crossword.overlaps[var,neighbor][1]
+                    # Make variable consistent with neigbors that are
+                    # assigned
+                    if neighbor in assignment:
+                        if type(assignment[neighbor]) == str:
+                            neighbor_word = assignment[neighbor]
+                            if neighbor_word[j] != assigned_word[i]:
+                                return False
+                    
         return(True)
 
     def order_domain_values(self, var, assignment):
@@ -320,9 +335,7 @@ class CrosswordCreator():
         """
         Using Backtracking Search, take as input a partial assignment for the
         crossword and return a complete assignment if possible to do so.
-
         `assignment` is a mapping from variables (keys) to words (values).
-
         If no assignment is possible, return None.
         """
         # Check if we have finished assigning word to variables
