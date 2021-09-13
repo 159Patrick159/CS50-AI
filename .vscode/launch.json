@@ -7,7 +7,8 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["c:\\Users\\patri\\OneDrive\\Desktop\\CS50_AI\\Optimization\\crossword\\data\\structure1.txt","c:\\Users\\patri\\OneDrive\\Desktop\\CS50_AI\\Optimization\\crossword\\data\\words1.txt","output.png"]
+            "args": ["c:\\Users\\patri\\OneDrive\\Desktop\\CS50_AI\\Learning\\shopping\\shopping.csv"]
         }
     ]
 }
+/// Args to run crossword: "c:\\Users\\patri\\OneDrive\\Desktop\\CS50_AI\\Optimization\\crossword\\data\\structure1.txt","c:\\Users\\patri\\OneDrive\\Desktop\\CS50_AI\\Optimization\\crossword\\data\\words1.txt","output.png"
